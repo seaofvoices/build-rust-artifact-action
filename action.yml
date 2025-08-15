@@ -1,0 +1,103 @@
+name: 'Build Rust Artifact Action'
+description: 'An action for building Rust binaries across Windows, MacOs and Linux'
+
+inputs:
+  release_ref:
+    description: 'The branch, tag or SHA to checkout [defaults to latest]'
+    required: false
+    default: ''
+
+  upload_url:
+    description: 'The upload URL for the created release'
+    required: true
+
+  artifact_name:
+    description: 'The name of the artifact to build'
+    required: true
+
+  package_name:
+    description: 'The name of the package to build'
+    required: true
+
+  cargo_target:
+    description: 'The target architecture for the build'
+    required: true
+
+  linker:
+    description: 'The linker to use for the build'
+    required: false
+    default: ''
+
+branding:
+  icon: 'upload'
+  color: 'orange'
+
+runs:
+  using: 'composite'
+  steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_ref }}
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ inputs.cargo_target }}
+          override: true
+          profile: minimal
+
+      - name: Install linker
+        shell: bash
+        if: ${{ inputs.linker != '' }}
+        run: |
+          sudo apt update
+          sudo apt install ${{ inputs.linker }}
+          if [ ! -f ".cargo/config.toml" ]; then
+            mkdir .cargo
+            echo "[target.aarch64-unknown-linux-gnu]" > .cargo/config.toml
+            echo 'linker = "aarch64-linux-gnu-gcc"' >> .cargo/config.toml
+          fi
+
+      - name: Generate Cargo.lock if needed
+        shell: bash
+        run: |
+          if [ ! -f "Cargo.lock" ]; then
+            cargo generate-lockfile
+          fi
+
+      - name: Build binary
+        shell: bash
+        run: cargo build --locked --release --target ${{ inputs.cargo_target }}
+        env:
+          CARGO_TARGET_DIR: output
+
+      - name: Setup archive
+        shell: bash
+        run: |
+          mkdir -p staging
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "output/${{ inputs.cargo_target }}/release/${{ inputs.package_name }}.exe" staging/
+            cd staging
+            7z a ../release.zip *
+          else
+            cp "output/${{ inputs.cargo_target }}/release/${{ inputs.package_name }}" staging/
+            cd staging
+            zip ../release.zip *
+          fi
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: release.zip
+
+      - name: Upload Binary to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ inputs.upload_url }}
+          asset_path: release.zip
+          asset_name: ${{ inputs.artifact_name }}.zip
+          asset_content_type: application/zip
