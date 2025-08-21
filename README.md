@@ -12,7 +12,7 @@ A GitHub action to build Rust binaries and attach them to GitHub release.
 
 The Rust Release Action outputs a build matrix that is consumed by this action to build Rust binaries across Windows, MacOs (`x86_64` and `aarch64`) and Linux (`x86_64` and `aarch64`).
 
-Visit the [Rust Release Action repository](https://github.com/seaofvoices/rust-release-action) to learn more about how you can
+Visit the [Rust Release Action repository](https://github.com/seaofvoices/rust-release-action) to learn more about how you can use this action effectively.
 
 ## License
 
